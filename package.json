@@ -1,20 +1,13 @@
 {
   "name": "solarianbot",
   "version": "1.0.0",
+  "description": "A Discord bot for Solarian NFTs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "description": "",
   "dependencies": {
-    "discord.js": "^14.17.3",
+    "discord.js": "^14.7.1",
     "dotenv": "^16.4.7"
   }
-}
-"scripts": {
-    "start": "node index.js"
 }
