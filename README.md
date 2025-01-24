@@ -1,6 +1,6 @@
 # SolarianBot
 
-SolarianBot is a Discord bot designed by RoboDAO for RoboDAO, aiming to provide robust tools for interacting with the Solarian NFT collection. This bot is open-source, white-labeled, and configurable via an `.env` file.
+SolarianBot is a Discord bot designed by RoboDAO for RoboDAO, aiming to provide robust tools for interacting with the Solarians NFT collection.
 
 ## Features
 
