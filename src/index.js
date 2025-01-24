@@ -6,6 +6,8 @@ const path = require('path');
 // Load environment variables from .env file
 dotenv.config();
 
+console.log('Loaded prefix:', process.env.PREFIX);
+
 // Initialize Discord bot client
 const client = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
@@ -43,7 +45,7 @@ client.once('ready', () => {
     console.log(`${client.user.tag} is online!`);
 });
 
-// Event: Interaction created (Slash Commands)
+// Event: Slash Command Interaction
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isCommand()) return;
 
@@ -59,6 +61,30 @@ client.on('interactionCreate', async (interaction) => {
             content: 'There was an error while executing this command!',
             ephemeral: true,
         });
+    }
+});
+
+// Event: Message-based Commands
+client.on('messageCreate', async (message) => {
+    if (!message.content.startsWith(process.env.PREFIX) || message.author.bot) return;
+
+    const args = message.content.slice(process.env.PREFIX.length).trim().split(/ +/);
+    const commandName = args.shift().toLowerCase();
+
+    const command = client.commands.get(commandName);
+
+    if (!command) return;
+
+    try {
+        await command.execute({
+            reply: (content) => message.channel.send(content),
+            channel: message.channel,
+            author: message.author,
+            args,
+        });
+    } catch (error) {
+        console.error(`Error executing command: ${commandName}`, error);
+        message.channel.send('There was an error while executing that command!');
     }
 });
 
