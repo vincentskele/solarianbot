@@ -23,11 +23,11 @@ const loadCommands = (dir) => {
     for (const file of files) {
         const filePath = path.join(dir, file);
         if (fs.statSync(filePath).isDirectory()) {
-            loadCommands(filePath);
+            loadCommands(filePath); // Recursively load nested directories
         } else if (file.endsWith('.js')) {
             const command = require(filePath);
-            if (command.name && typeof command.execute === 'function') {
-                client.commands.set(command.name, command);
+            if (command.data && typeof command.execute === 'function') {
+                client.commands.set(command.data.name, command); // Store the command
             } else {
                 console.warn(`Skipping invalid command file: ${filePath}`);
             }
@@ -35,7 +35,7 @@ const loadCommands = (dir) => {
     }
 };
 
-// Load all commands
+// Load all commands from the commands directory
 loadCommands(path.join(__dirname, 'commands'));
 
 // Event: Bot ready
@@ -43,24 +43,24 @@ client.once('ready', () => {
     console.log(`${client.user.tag} is online!`);
 });
 
-// Event: Message received
-client.on('messageCreate', (message) => {
-    if (!message.content.startsWith(process.env.PREFIX) || message.author.bot) return;
+// Event: Interaction created (Slash Commands)
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isCommand()) return;
 
-    const args = message.content.slice(process.env.PREFIX.length).trim().split(/ +/);
-    const commandName = args.shift().toLowerCase();
+    const command = client.commands.get(interaction.commandName);
 
-    const command = client.commands.get(commandName);
     if (!command) return;
 
     try {
-        command.execute(message, args);
+        await command.execute(interaction); // Execute the command
     } catch (error) {
-        console.error(`Error executing command: ${commandName}`, error);
-        message.reply('There was an error executing that command!');
+        console.error(`Error executing command: ${interaction.commandName}`, error);
+        await interaction.reply({
+            content: 'There was an error while executing this command!',
+            ephemeral: true,
+        });
     }
 });
 
 // Log in to Discord with the bot token
 client.login(process.env.DISCORD_TOKEN);
-
