@@ -40,8 +40,3 @@ Currently implemented:
    ```bash
    npm start
    ```
-
-### Usage
-
-- Use `!ping` in any channel the bot has access to, and it will respond with `Pong!`.
-
