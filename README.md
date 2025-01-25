@@ -1,11 +1,15 @@
 # SolarianBot
 
-SolarianBot is a Discord bot designed by RoboDAO for RoboDAO, aiming to provide robust tools for interacting with the Solarians NFT collection.
+SolarianBot is a Discord bot designed by RoboDAO for RoboDAO, aiming to provide robust tools for interacting with the Solarians NFT collection. Commands can be called with a prefix defined in .env or with / .
 
 ## Features
 
 Currently implemented:
-- Responds to `!ping` with `Pong!` to confirm the bot is online.
+- Responds to `ping` with `Pong!` to confirm the bot is online.
+- Responds to `random` with a random Solarian GIF.
+- Responds to `view <MINT #>` with the Solarian's GIF and metadata.
+- Responds to `randomattibute` with a random attribute and an example of a Solarian with the attribute.
+
 
 ## Getting Started
 
