@@ -9,7 +9,7 @@ Currently implemented:
 - Responds to `random` with a random Solarian GIF.
 - Responds to `view <MINT #>` with the Solarian's GIF and metadata.
 - Responds to `randomattibute` with a random attribute and an example of a Solarian with the attribute.
-
+- Responds to `rank <rank #` to display info about a particularly ranked Solarian.
 
 ## Getting Started
 
