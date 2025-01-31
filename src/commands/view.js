@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -64,25 +64,28 @@ module.exports = {
                 .map(attr => `**${attr.trait_type}:** ${attr.value}`)
                 .join('\n');
 
-            let response = `**Details for Mint #: ${mintNumber}**\n`;
-            response += `**Name:** ${metadata.Name}\n`;
-            response += `**Created:** ${createdDate}\n`;
-            response += `**Title:** ${title}\n`;
-            response += `**Level:** ${level}\n`;
-            response += `**Luck:** ${luck}\n`;
-            response += `**Average Rarity:** ${rarity}`;
+            // Create an embed
+            const embed = new EmbedBuilder()
+                .setTitle(`Details for Mint #: ${mintNumber}`)
+                .setColor(0xE69349) // Solarian orange color
+                .setDescription(`**Name:** ${metadata.Name}`)
+                .addFields(
+                    { name: 'Title', value: title, inline: true },
+                    { name: 'Level', value: level, inline: true },
+                    { name: 'Luck', value: luck, inline: true },
+                    { name: 'Average Rarity', value: rarity, inline: true },
+                )
+                .setFooter({ text: `Created: ${createdDate}` });
 
             if (traits) {
-                response += `\n${traits}`;
+                embed.addFields({ name: 'Attributes', value: traits });
             }
 
-            response = response.trim();
-
             if (gifPath) {
-                return context.reply({ content: response, files: [gifPath] });
+                embed.setImage(`attachment://${path.basename(gifPath)}`);
+                return context.reply({ embeds: [embed], files: [{ attachment: gifPath, name: path.basename(gifPath) }] });
             } else {
-                response += `\n*No associated GIF found for Mint #: ${mintNumber}*`;
-                return context.reply(response.trim());
+                return context.reply({ embeds: [embed] });
             }
         } catch (error) {
             console.error('Error in view command:', error);
