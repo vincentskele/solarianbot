@@ -19,8 +19,6 @@ module.exports = {
             const isInteraction = context.isChatInputCommand?.();
             const userId = isInteraction ? context.user.id : context.author?.id;
 
-            // If it's a slash command, `mintNumber` is from context.options;
-            // otherwise it's from context.args (classic command style).
             const mintNumber = isInteraction
                 ? context.options.getInteger('mint_number').toString()
                 : context.args[0]?.toString();
@@ -37,7 +35,6 @@ module.exports = {
             const imgDirectory = path.join(__dirname, '../data/img');
             const mergedData = JSON.parse(fs.readFileSync(mergedPath, 'utf-8'));
 
-            // Find metadata for the requested mintNumber
             const metadata = mergedData.find(item => item.MintNumber === parseInt(mintNumber, 10));
             if (!metadata) {
                 const notFoundMessage = `❌ <@${userId}> No metadata found for Mint #: ${mintNumber}`;
@@ -47,7 +44,6 @@ module.exports = {
                 });
             }
 
-            // Determine the correct GIF path if one exists
             let gifPath = null;
             if (metadata.Entangled) {
                 const entangledGifPath = path.join(imgDirectory, `${metadata.Entangled}.gif`);
@@ -63,43 +59,44 @@ module.exports = {
                 }
             }
 
-            // Extract title from the attributes
             const title = metadata.Attributes.find(attr => attr.trait_type === 'Title')?.value || 'Unknown';
 
-            // Filter out the attributes we don't want to display
-            const traits = metadata.Attributes
-                .filter(attr => !['Mint #', 'Title', 'Level', 'Luck', 'Average Rarity', 'Created'].includes(attr.trait_type))
-                .map(attr => `**${attr.trait_type}:** ${attr.value}`)
-                .join('\n');
+            // Fetching the rank properly using "Ranking #"
+            const rank = metadata.Attributes.find(attr => attr.trait_type === 'Ranking #')?.value || 'N/A';
 
-            // Build the embed
+            const traits = metadata.Attributes.reduce((acc, attr) => {
+                const key = attr.trait_type.toLowerCase();
+                acc[key] = attr.value;
+                return acc;
+            }, {});
+
             const embed = new EmbedBuilder()
-                .setTitle(`Details for Mint #: ${mintNumber}`)
+                .setAuthor({ name: `Solarian #${mintNumber}` })
+                .setTitle(metadata.Name)
                 .setColor(0xE69349) // Solarian orange color
-                .setDescription(`**Name:** ${metadata.Name}`)
-                .addFields({ name: 'Title', value: title, inline: true });
-
-            if (traits) {
-                embed.addFields({ name: 'Attributes', value: traits });
-            }
+                .setDescription(`**Title**: ${title}`)
+                .addFields(
+                    { name: 'Rank', value: `${rank}`, inline: true },
+                    { name: 'Antenna', value: `${traits['antenna'] || 'N/A'}`, inline: true },
+                    { name: 'Mouth', value: `${traits['mouth'] || 'N/A'}`, inline: true },
+                    { name: 'Torso', value: `${traits['torso'] || 'N/A'}`, inline: true },
+                    { name: 'Feet', value: `${traits['feet'] || 'N/A'}`, inline: true },
+                    { name: 'Scene', value: `${traits['scene'] || 'N/A'}`, inline: true },
+                    { name: 'Hands', value: `${traits['hands'] || 'N/A'}`, inline: true },
+                    { name: 'Head', value: `${traits['head'] || 'N/A'}`, inline: true },
+                    { name: 'Eyes', value: `${traits['eyes'] || 'N/A'}`, inline: true }
+                );
 
             if (gifPath) {
-                embed.setImage(`attachment://${path.basename(gifPath)}`);
+                embed.setThumbnail(`attachment://${path.basename(gifPath)}`);
             }
 
-            // Build the reply object
             const replyOptions = {
-                content: `<@${userId}>`,  // This ensures it pings the user
+                content: `<@${userId}>`,
                 embeds: [embed],
                 files: gifPath ? [{ attachment: gifPath, name: path.basename(gifPath) }] : [],
                 allowedMentions: { parse: ['users'] }
             };
-
-            // If it's a non-slash command, you can also set `reference` to the original message
-            // so it directly replies (threads under the same message). Not strictly required.
-            if (!isInteraction) {
-                replyOptions.reference = context.message;
-            }
 
             return context.reply(replyOptions);
 
