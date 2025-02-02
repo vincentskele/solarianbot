@@ -3,10 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = {
-    name: 'view',
+    name: 'solarian',
     description: 'View details about a specific mint by its Mint #',
     data: new SlashCommandBuilder()
-        .setName('view')
+        .setName('solarian')
         .setDescription('View details about a specific mint')
         .addIntegerOption(option =>
             option
@@ -21,7 +21,7 @@ module.exports = {
                 : context.args[0]?.toString();
 
             if (!mintNumber || isNaN(parseInt(mintNumber, 10))) {
-                return context.reply('Invalid Mint #. It must be a number. Usage: $view <Mint #>');
+                return context.reply('Invalid Mint #. It must be a number. Usage: $solarian <Mint #>');
             }
 
             const mergedPath = path.join(__dirname, '../data/merged_mints.json');
@@ -48,19 +48,10 @@ module.exports = {
                 }
             }
 
-            const createdDate = new Date(metadata.Created).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-            });
-
             const title = metadata.Attributes.find(attr => attr.trait_type === 'Title')?.value || 'Unknown';
-            const level = metadata.Attributes.find(attr => attr.trait_type === 'Level')?.value || 'Unknown';
-            const luck = metadata.Attributes.find(attr => attr.trait_type === 'Luck')?.value || 'Unknown';
-            const rarity = metadata.Attributes.find(attr => attr.trait_type === 'Average Rarity')?.value || 'Unknown';
-
+            
             const traits = metadata.Attributes
-                .filter(attr => !['Mint #', 'Title', 'Level', 'Luck', 'Average Rarity'].includes(attr.trait_type))
+                .filter(attr => !['Mint #', 'Title', 'Level', 'Luck', 'Average Rarity', 'Created'].includes(attr.trait_type))
                 .map(attr => `**${attr.trait_type}:** ${attr.value}`)
                 .join('\n');
 
@@ -70,12 +61,8 @@ module.exports = {
                 .setColor(0xE69349) // Solarian orange color
                 .setDescription(`**Name:** ${metadata.Name}`)
                 .addFields(
-                    { name: 'Title', value: title, inline: true },
-                    { name: 'Level', value: level, inline: true },
-                    { name: 'Luck', value: luck, inline: true },
-                    { name: 'Average Rarity', value: rarity, inline: true },
-                )
-                .setFooter({ text: `Created: ${createdDate}` });
+                    { name: 'Title', value: title, inline: true }
+                );
 
             if (traits) {
                 embed.addFields({ name: 'Attributes', value: traits });
@@ -88,7 +75,7 @@ module.exports = {
                 return context.reply({ embeds: [embed] });
             }
         } catch (error) {
-            console.error('Error in view command:', error);
+            console.error('Error in solarian command:', error);
             return context.reply('An error occurred while retrieving mint details.');
         }
     },
