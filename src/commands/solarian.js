@@ -73,7 +73,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setAuthor({ name: `Solarian #${mintNumber}` })
                 .setTitle(metadata.Name)
-                .setColor(0xE69349) // Solarian orange color
+                .setColor(0xe0aa3e) // Updated color to #e0aa3e
                 .setDescription(`**Title**: ${title}`)
                 .addFields(
                     { name: 'Rank', value: `${rank}`, inline: true },
