@@ -16,23 +16,38 @@ module.exports = {
         ),
     async execute(context) {
         try {
-            const mintNumber = context.options
+            const isInteraction = context.isChatInputCommand?.();
+            const userId = isInteraction ? context.user.id : context.author?.id;
+
+            // If it's a slash command, `mintNumber` is from context.options;
+            // otherwise it's from context.args (classic command style).
+            const mintNumber = isInteraction
                 ? context.options.getInteger('mint_number').toString()
                 : context.args[0]?.toString();
 
             if (!mintNumber || isNaN(parseInt(mintNumber, 10))) {
-                return context.reply('Invalid Mint #. It must be a number. Usage: $solarian <Mint #>');
+                const errorMessage = `❌ <@${userId}> Invalid Mint #. It must be a number.\nUsage: \`$solarian <Mint #>\``;
+                return context.reply({
+                    content: errorMessage,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
             const mergedPath = path.join(__dirname, '../data/merged_mints.json');
             const imgDirectory = path.join(__dirname, '../data/img');
             const mergedData = JSON.parse(fs.readFileSync(mergedPath, 'utf-8'));
 
+            // Find metadata for the requested mintNumber
             const metadata = mergedData.find(item => item.MintNumber === parseInt(mintNumber, 10));
             if (!metadata) {
-                return context.reply(`No metadata found for Mint #: ${mintNumber}`);
+                const notFoundMessage = `❌ <@${userId}> No metadata found for Mint #: ${mintNumber}`;
+                return context.reply({
+                    content: notFoundMessage,
+                    allowedMentions: { parse: ['users'] }
+                });
             }
 
+            // Determine the correct GIF path if one exists
             let gifPath = null;
             if (metadata.Entangled) {
                 const entangledGifPath = path.join(imgDirectory, `${metadata.Entangled}.gif`);
@@ -48,21 +63,21 @@ module.exports = {
                 }
             }
 
+            // Extract title from the attributes
             const title = metadata.Attributes.find(attr => attr.trait_type === 'Title')?.value || 'Unknown';
-            
+
+            // Filter out the attributes we don't want to display
             const traits = metadata.Attributes
                 .filter(attr => !['Mint #', 'Title', 'Level', 'Luck', 'Average Rarity', 'Created'].includes(attr.trait_type))
                 .map(attr => `**${attr.trait_type}:** ${attr.value}`)
                 .join('\n');
 
-            // Create an embed
+            // Build the embed
             const embed = new EmbedBuilder()
                 .setTitle(`Details for Mint #: ${mintNumber}`)
                 .setColor(0xE69349) // Solarian orange color
                 .setDescription(`**Name:** ${metadata.Name}`)
-                .addFields(
-                    { name: 'Title', value: title, inline: true }
-                );
+                .addFields({ name: 'Title', value: title, inline: true });
 
             if (traits) {
                 embed.addFields({ name: 'Attributes', value: traits });
@@ -70,13 +85,31 @@ module.exports = {
 
             if (gifPath) {
                 embed.setImage(`attachment://${path.basename(gifPath)}`);
-                return context.reply({ embeds: [embed], files: [{ attachment: gifPath, name: path.basename(gifPath) }] });
-            } else {
-                return context.reply({ embeds: [embed] });
             }
+
+            // Build the reply object
+            const replyOptions = {
+                content: `<@${userId}>`,  // This ensures it pings the user
+                embeds: [embed],
+                files: gifPath ? [{ attachment: gifPath, name: path.basename(gifPath) }] : [],
+                allowedMentions: { parse: ['users'] }
+            };
+
+            // If it's a non-slash command, you can also set `reference` to the original message
+            // so it directly replies (threads under the same message). Not strictly required.
+            if (!isInteraction) {
+                replyOptions.reference = context.message;
+            }
+
+            return context.reply(replyOptions);
+
         } catch (error) {
             console.error('Error in solarian command:', error);
-            return context.reply('An error occurred while retrieving mint details.');
+            const errorMessage = `❌ <@${isInteraction ? context.user.id : context.author?.id}> An error occurred while retrieving mint details.`;
+            return context.reply({
+                content: errorMessage,
+                allowedMentions: { parse: ['users'] }
+            });
         }
     },
 };
