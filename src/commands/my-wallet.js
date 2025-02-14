@@ -5,6 +5,7 @@ const path = require('path');
 // Paths to required data
 const holdersFilePath = path.resolve(__dirname, '../../../robo-check/src/data/holders.json');
 const imgDirectory = path.resolve(__dirname, '../data/img'); // Path to GIF images
+const mergedMintsPath = path.resolve(__dirname, '../data/merged_mints.json'); // Entangled IDs file
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -52,30 +53,59 @@ module.exports = {
             const holder = holdersData.find(h => h.walletAddress === walletAddress);
 
             if (!holder) {
-                return await context.reply(`❌ No holdings found for wallet: \`${walletAddress}\`.`);
+                return await context.reply('❌ No holdings found for your wallet.');
             }
 
             // List Solarians owned
             const solariansOwned = holder.solarians;
 
             if (solariansOwned.length === 0) {
-                return await context.reply(`✅ **Wallet:** \`${walletAddress}\`\n📦 No Solarians owned.`);
+                return await context.reply('📦 No Solarians owned.');
             }
 
             // Check if imgDirectory exists
             if (!fs.existsSync(imgDirectory)) {
                 console.warn(`⚠️ Image directory not found: ${imgDirectory}`);
-                return await context.reply(`✅ **Solarians Owned:** ${solariansOwned.length}\n⚠️ Image directory is missing.`);
+                return await context.reply(`📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ Image directory is missing.`);
             }
 
-            // Parse the /img directory and match GIFs
+            // Load merged_mints.json if it exists
+            let mergedMints = {};
+            if (fs.existsSync(mergedMintsPath)) {
+                const mergedData = fs.readFileSync(mergedMintsPath, 'utf-8');
+                mergedMints = JSON.parse(mergedData);
+            }
+
+            // Find matching images, checking merged_mints.json for entangled IDs if needed
             const availableImages = fs.readdirSync(imgDirectory);
-            const matchingImages = solariansOwned
-                .map(solarian => availableImages.find(img => img.startsWith(solarian))) // Match files by prefix
-                .filter(Boolean); // Remove undefined matches
+            const missingImages = [];
+
+            const matchingImages = solariansOwned.map(solarian => {
+                // Attempt to find the image using the primary Mint address
+                let image = availableImages.find(img => img.startsWith(solarian));
+
+                // If no direct match, check merged_mints.json for an entry corresponding to this address
+                if (!image) {
+                    const matchedEntry = mergedMints.find(entry => entry.Mint === solarian || entry.Entangled === solarian);
+                    if (matchedEntry) {
+                        // Always use the Mint address from the matched entry as the fallback for the image search
+                        image = availableImages.find(img => img.startsWith(matchedEntry.Mint));
+                        if (!image) {
+                            missingImages.push({ solarian, fallbackID: matchedEntry.Mint });
+                        }
+                    }
+                }
+
+                return image;
+            }).filter(Boolean); // Remove undefined matches
+
+            // Debug Log for missing images
+            if (missingImages.length > 0) {
+                console.log(`🚨 Missing images for these Solarians (fallback also failed):`, missingImages);
+            }
 
             if (matchingImages.length === 0) {
-                return await context.reply(`✅ **Wallet:** \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ No images found for these Solarians.`);
+                return await context.reply(`📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ No images found for these Solarians.`);
             }
 
             // Pagination setup (1 Solarian per page)
@@ -88,7 +118,7 @@ module.exports = {
                 const embed = new EmbedBuilder()
                     .setColor(0xE69349)
                     .setTitle('Solarians Wallet Summary')
-                    .setDescription(`Wallet: \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}`)
+                    .setDescription(`📦 **Solarians Owned:** ${solariansOwned.length}`)
                     .setFooter({ text: `Solarian ${pageIndex + 1} of ${totalPages}` })
                     .setImage(`attachment://${solarian}`);
 
@@ -160,25 +190,6 @@ module.exports = {
                 };
 
                 await interaction.update({ embeds: [newEmbed], files: [newFile], components: [newRow] });
-            });
-
-            collector.on('end', async () => {
-                // Disable buttons when time expires
-                const disabledRow = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('prev')
-                            .setLabel('⬅️ Previous')
-                            .setStyle(ButtonStyle.Primary)
-                            .setDisabled(true),
-                        new ButtonBuilder()
-                            .setCustomId('next')
-                            .setLabel('Next ➡️')
-                            .setStyle(ButtonStyle.Primary)
-                            .setDisabled(true)
-                    );
-
-                await message.edit({ components: [disabledRow] });
             });
 
         } catch (error) {
