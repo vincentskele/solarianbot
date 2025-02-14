@@ -66,7 +66,7 @@ module.exports = {
             // Check if imgDirectory exists
             if (!fs.existsSync(imgDirectory)) {
                 console.warn(`⚠️ Image directory not found: ${imgDirectory}`);
-                return await context.reply(`✅ **Wallet:** \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ Image directory is missing.`);
+                return await context.reply(`✅ **Solarians Owned:** ${solariansOwned.length}\n⚠️ Image directory is missing.`);
             }
 
             // Load merged_mints.json if it exists
