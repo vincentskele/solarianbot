@@ -9,11 +9,11 @@ const mergedMintsPath = path.resolve(__dirname, '../data/merged_mints.json'); //
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('my-wallet')
-        .setDescription('Retrieves your wallet holdings and attached Solarian GIFs')
+        .setName('wallet')
+        .setDescription('Retrieves wallet holdings and attached Solarian GIFs')
         .addStringOption(option =>
             option.setName('wallet')
-                .setDescription('Your Solana wallet address (optional, auto-detected if linked)')
+                .setDescription('Solana wallet address (optional, auto-detected if linked)')
                 .setRequired(false)
         ),
 
