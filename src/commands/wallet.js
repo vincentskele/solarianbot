@@ -28,14 +28,7 @@ module.exports = {
             const rawData = fs.readFileSync(holdersFilePath, 'utf-8');
             const holdersData = JSON.parse(rawData);
 
-            let walletAddress;
-
-            // Check if the user provided a wallet manually
-            if (context.isCommand && context.isCommand()) {
-                walletAddress = context.options.getString('wallet');
-            } else if (context.args && context.args.length > 0) {
-                walletAddress = context.args[0];
-            }
+            let walletAddress = context.options.getString('wallet');
 
             // Auto-detect wallet using Discord ID if not provided
             if (!walletAddress) {
@@ -81,14 +74,11 @@ module.exports = {
             const missingImages = [];
 
             const matchingImages = solariansOwned.map(solarian => {
-                // Attempt to find the image using the primary Mint address
                 let image = availableImages.find(img => img.startsWith(solarian));
 
-                // If no direct match, check merged_mints.json for an entry corresponding to this address
                 if (!image) {
                     const matchedEntry = mergedMints.find(entry => entry.Mint === solarian || entry.Entangled === solarian);
                     if (matchedEntry) {
-                        // Always use the Mint address from the matched entry as the fallback for the image search
                         image = availableImages.find(img => img.startsWith(matchedEntry.Mint));
                         if (!image) {
                             missingImages.push({ solarian, fallbackID: matchedEntry.Mint });
@@ -97,18 +87,13 @@ module.exports = {
                 }
 
                 return image;
-            }).filter(Boolean); // Remove undefined matches
-
-            // Debug Log for missing images
-            if (missingImages.length > 0) {
-                console.log(`🚨 Missing images for these Solarians (fallback also failed):`, missingImages);
-            }
+            }).filter(Boolean);
 
             if (matchingImages.length === 0) {
                 return await context.reply(`📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ No images found for these Solarians.`);
             }
 
-            // Pagination setup (1 Solarian per page)
+            // Pagination setup
             let page = 0;
             const totalPages = matchingImages.length;
 
@@ -134,16 +119,20 @@ module.exports = {
                 name: image
             };
 
+            // Unique button IDs for this session
+            const uniquePrevId = `prev_${context.user.id}_${Date.now()}`;
+            const uniqueNextId = `next_${context.user.id}_${Date.now()}`;
+
             // Create action buttons (only if more than 1 Solarian)
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setCustomId('prev')
+                        .setCustomId(uniquePrevId)
                         .setLabel('⬅️ Previous')
                         .setStyle(ButtonStyle.Primary)
                         .setDisabled(page === 0),
                     new ButtonBuilder()
-                        .setCustomId('next')
+                        .setCustomId(uniqueNextId)
                         .setLabel('Next ➡️')
                         .setStyle(ButtonStyle.Primary)
                         .setDisabled(page === totalPages - 1)
@@ -152,48 +141,47 @@ module.exports = {
             // Send initial embed with first Solarian image
             const message = await context.reply({ embeds: [embed], files: [file], components: totalPages > 1 ? [row] : [] });
 
-            if (totalPages <= 1) return; // No pagination needed if only one Solarian
+            if (totalPages <= 1) return;
 
             // Create an interaction collector for button clicks
-            const collector = message.createMessageComponentCollector({ time: 60000 }); // 60 sec timeout
+            const collector = message.createMessageComponentCollector({
+                filter: interaction => interaction.user.id === context.user.id && (interaction.customId === uniquePrevId || interaction.customId === uniqueNextId),
+                time: 60000
+            });
 
             collector.on('collect', async interaction => {
-                if (interaction.user.id !== context.user.id) {
-                    return await interaction.reply({ content: '❌ You cannot control this menu.', ephemeral: true });
-                }
-
-                if (interaction.customId === 'prev' && page > 0) {
+                if (interaction.customId === uniquePrevId && page > 0) {
                     page--;
-                } else if (interaction.customId === 'next' && page < totalPages - 1) {
+                } else if (interaction.customId === uniqueNextId && page < totalPages - 1) {
                     page++;
                 }
 
                 // Update buttons & page content
                 const { embed: newEmbed, image: newImage } = generatePage(page);
-                const newRow = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setCustomId('prev')
-                            .setLabel('⬅️ Previous')
-                            .setStyle(ButtonStyle.Primary)
-                            .setDisabled(page === 0),
-                        new ButtonBuilder()
-                            .setCustomId('next')
-                            .setLabel('Next ➡️')
-                            .setStyle(ButtonStyle.Primary)
-                            .setDisabled(page === totalPages - 1)
-                    );
-
                 const newFile = {
                     attachment: path.join(imgDirectory, newImage),
                     name: newImage
                 };
 
+                const newRow = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId(uniquePrevId)
+                            .setLabel('⬅️ Previous')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId(uniqueNextId)
+                            .setLabel('Next ➡️')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === totalPages - 1)
+                    );
+
                 await interaction.update({ embeds: [newEmbed], files: [newFile], components: [newRow] });
             });
 
         } catch (error) {
-            console.error('Error executing my-wallet command:', error);
+            console.error('Error executing wallet command:', error);
             await context.reply('⚠️ An error occurred while retrieving wallet data.');
         }
     },
