@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -62,25 +62,124 @@ module.exports = {
                 return await context.reply(`✅ **Wallet:** \`${walletAddress}\`\n📦 No Solarians owned.`);
             }
 
+            // Check if imgDirectory exists
+            if (!fs.existsSync(imgDirectory)) {
+                console.warn(`⚠️ Image directory not found: ${imgDirectory}`);
+                return await context.reply(`✅ **Wallet:** \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ Image directory is missing.`);
+            }
+
             // Parse the /img directory and match GIFs
             const availableImages = fs.readdirSync(imgDirectory);
             const matchingImages = solariansOwned
                 .map(solarian => availableImages.find(img => img.startsWith(solarian))) // Match files by prefix
                 .filter(Boolean); // Remove undefined matches
 
-            // Prepare attachments
-            const attachments = matchingImages.map(img => new AttachmentBuilder(path.join(imgDirectory, img)));
-
-            // Prepare the response
-            let response = `✅ **Wallet:** \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}`;
-
-            // Send message with or without images
-            if (attachments.length > 0) {
-                await context.reply({ content: response, files: attachments });
-            } else {
-                response += '\n⚠️ No images found for these Solarians.';
-                await context.reply(response);
+            if (matchingImages.length === 0) {
+                return await context.reply(`✅ **Wallet:** \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ No images found for these Solarians.`);
             }
+
+            // Pagination setup (1 Solarian per page)
+            let page = 0;
+            const totalPages = matchingImages.length;
+
+            // Function to generate embed for a page
+            const generatePage = (pageIndex) => {
+                const solarian = matchingImages[pageIndex];
+                const embed = new EmbedBuilder()
+                    .setColor(0xE69349)
+                    .setTitle('Solarians Wallet Summary')
+                    .setDescription(`Wallet: \`${walletAddress}\`\n📦 **Solarians Owned:** ${solariansOwned.length}`)
+                    .setFooter({ text: `Solarian ${pageIndex + 1} of ${totalPages}` })
+                    .setImage(`attachment://${solarian}`);
+
+                return { embed, image: solarian };
+            };
+
+            // Generate first page
+            const { embed, image } = generatePage(page);
+
+            // Attach single image
+            const file = {
+                attachment: path.join(imgDirectory, image),
+                name: image
+            };
+
+            // Create action buttons (only if more than 1 Solarian)
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('prev')
+                        .setLabel('⬅️ Previous')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === 0),
+                    new ButtonBuilder()
+                        .setCustomId('next')
+                        .setLabel('Next ➡️')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(page === totalPages - 1)
+                );
+
+            // Send initial embed with first Solarian image
+            const message = await context.reply({ embeds: [embed], files: [file], components: totalPages > 1 ? [row] : [] });
+
+            if (totalPages <= 1) return; // No pagination needed if only one Solarian
+
+            // Create an interaction collector for button clicks
+            const collector = message.createMessageComponentCollector({ time: 60000 }); // 60 sec timeout
+
+            collector.on('collect', async interaction => {
+                if (interaction.user.id !== context.user.id) {
+                    return await interaction.reply({ content: '❌ You cannot control this menu.', ephemeral: true });
+                }
+
+                if (interaction.customId === 'prev' && page > 0) {
+                    page--;
+                } else if (interaction.customId === 'next' && page < totalPages - 1) {
+                    page++;
+                }
+
+                // Update buttons & page content
+                const { embed: newEmbed, image: newImage } = generatePage(page);
+                const newRow = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('prev')
+                            .setLabel('⬅️ Previous')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === 0),
+                        new ButtonBuilder()
+                            .setCustomId('next')
+                            .setLabel('Next ➡️')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(page === totalPages - 1)
+                    );
+
+                const newFile = {
+                    attachment: path.join(imgDirectory, newImage),
+                    name: newImage
+                };
+
+                await interaction.update({ embeds: [newEmbed], files: [newFile], components: [newRow] });
+            });
+
+            collector.on('end', async () => {
+                // Disable buttons when time expires
+                const disabledRow = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('prev')
+                            .setLabel('⬅️ Previous')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(true),
+                        new ButtonBuilder()
+                            .setCustomId('next')
+                            .setLabel('Next ➡️')
+                            .setStyle(ButtonStyle.Primary)
+                            .setDisabled(true)
+                    );
+
+                await message.edit({ components: [disabledRow] });
+            });
 
         } catch (error) {
             console.error('Error executing my-wallet command:', error);
