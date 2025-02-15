@@ -5,7 +5,7 @@ const path = require('path');
 // Paths to required data
 const holdersFilePath = path.resolve(__dirname, '../../../robo-check/src/data/holders.json');
 const imgDirectory = path.resolve(__dirname, '../data/img'); // Path to GIF images
-const mergedMintsPath = path.resolve(__dirname, '../data/merged_mints.json'); // Entangled IDs file
+const mergedMintsPath = path.resolve(__dirname, '../data/merged_mints.json'); // File containing merged mint data
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -19,7 +19,7 @@ module.exports = {
 
     async execute(context) {
         try {
-            // Check if holders.json exists
+            // Ensure holders.json exists
             if (!fs.existsSync(holdersFilePath)) {
                 return await context.reply('⚠️ Holders data is not available.');
             }
@@ -56,64 +56,70 @@ module.exports = {
                 return await context.reply('📦 No Solarians owned.');
             }
 
-            // Check if imgDirectory exists
+            // Ensure image directory exists
             if (!fs.existsSync(imgDirectory)) {
                 console.warn(`⚠️ Image directory not found: ${imgDirectory}`);
                 return await context.reply(`📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ Image directory is missing.`);
             }
+            const availableImages = fs.readdirSync(imgDirectory);
 
-            // Load merged_mints.json if it exists
-            let mergedMints = {};
+            // Load merged_mints.json if it exists (expected as an array)
+            let mergedMints = [];
             if (fs.existsSync(mergedMintsPath)) {
                 const mergedData = fs.readFileSync(mergedMintsPath, 'utf-8');
                 mergedMints = JSON.parse(mergedData);
             }
 
-            // Find matching images, checking merged_mints.json for entangled IDs if needed
-            const availableImages = fs.readdirSync(imgDirectory);
-            const missingImages = [];
-
-            const matchingImages = solariansOwned.map(solarian => {
+            // Map each Solarian to its image and mint metadata (if available)
+            const matchingSolarians = solariansOwned.map(solarian => {
+                // Try to find an image that starts with the solarian id
                 let image = availableImages.find(img => img.startsWith(solarian));
-
+                let mintData = null;
+                
                 if (!image) {
-                    const matchedEntry = mergedMints.find(entry => entry.Mint === solarian || entry.Entangled === solarian);
-                    if (matchedEntry) {
-                        image = availableImages.find(img => img.startsWith(matchedEntry.Mint));
-                        if (!image) {
-                            missingImages.push({ solarian, fallbackID: matchedEntry.Mint });
-                        }
+                    // If not found, check merged_mints.json for a match by Mint or Entangled address
+                    mintData = mergedMints.find(entry => entry.Mint === solarian || entry.Entangled === solarian);
+                    if (mintData) {
+                        image = availableImages.find(img => img.startsWith(mintData.Mint));
                     }
+                } else {
+                    // Even if image is found, try to find matching mint metadata for additional details
+                    mintData = mergedMints.find(entry => entry.Mint === solarian || entry.Entangled === solarian);
                 }
-
-                return image;
+                return image ? { solarian, image, mintData } : null;
             }).filter(Boolean);
 
-            if (matchingImages.length === 0) {
+            if (matchingSolarians.length === 0) {
                 return await context.reply(`📦 **Solarians Owned:** ${solariansOwned.length}\n⚠️ No images found for these Solarians.`);
             }
 
             // Pagination setup
             let page = 0;
-            const totalPages = matchingImages.length;
+            const totalPages = matchingSolarians.length;
 
-            // Function to generate embed for a page
+            // Function to generate an embed for a specific page
             const generatePage = (pageIndex) => {
-                const solarian = matchingImages[pageIndex];
+                const { solarian, image, mintData } = matchingSolarians[pageIndex];
                 const embed = new EmbedBuilder()
                     .setColor(0xE69349)
                     .setTitle('Solarians Wallet Summary')
                     .setDescription(`📦 **Solarians Owned:** ${solariansOwned.length}`)
                     .setFooter({ text: `Solarian ${pageIndex + 1} of ${totalPages}` })
-                    .setImage(`attachment://${solarian}`);
-
-                return { embed, image: solarian };
+                    .setImage(`attachment://${image}`);
+                
+                // Add the Mint # field from mint metadata if available
+                if (mintData && mintData.MintNumber) {
+                    embed.addFields({ name: 'Mint #', value: mintData.MintNumber.toString(), inline: true });
+                } else {
+                    embed.addFields({ name: 'Mint #', value: 'N/A', inline: true });
+                }
+                return { embed, image };
             };
 
             // Generate first page
             const { embed, image } = generatePage(page);
 
-            // Attach single image
+            // Prepare the file attachment
             const file = {
                 attachment: path.join(imgDirectory, image),
                 name: image
@@ -123,7 +129,7 @@ module.exports = {
             const uniquePrevId = `prev_${context.user.id}_${Date.now()}`;
             const uniqueNextId = `next_${context.user.id}_${Date.now()}`;
 
-            // Create action buttons (only if more than 1 Solarian)
+            // Create action buttons (only if there is more than one Solarian)
             const row = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -138,7 +144,7 @@ module.exports = {
                         .setDisabled(page === totalPages - 1)
                 );
 
-            // Send initial embed with first Solarian image
+            // Send the initial embed with the first Solarian image
             const message = await context.reply({ embeds: [embed], files: [file], components: totalPages > 1 ? [row] : [] });
 
             if (totalPages <= 1) return;
@@ -156,7 +162,7 @@ module.exports = {
                     page++;
                 }
 
-                // Update buttons & page content
+                // Update the embed and buttons for the new page
                 const { embed: newEmbed, image: newImage } = generatePage(page);
                 const newFile = {
                     attachment: path.join(imgDirectory, newImage),
