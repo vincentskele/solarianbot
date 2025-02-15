@@ -146,7 +146,7 @@ module.exports = {
             // Create an interaction collector for button clicks
             const collector = message.createMessageComponentCollector({
                 filter: interaction => interaction.user.id === context.user.id && (interaction.customId === uniquePrevId || interaction.customId === uniqueNextId),
-                time: 60000
+                time: 600000
             });
 
             collector.on('collect', async interaction => {
