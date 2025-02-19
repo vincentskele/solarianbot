@@ -47,6 +47,19 @@ client.once('ready', () => {
 
 // Event: Slash Command Interaction
 client.on('interactionCreate', async (interaction) => {
+    if (interaction.isAutocomplete()) {
+        // Find the command
+        const command = client.commands.get(interaction.commandName);
+        if (!command || !command.autocomplete) return;
+
+        try {
+            await command.autocomplete(interaction);
+        } catch (error) {
+            console.error('Autocomplete error:', error);
+        }
+        return;
+    }
+
     if (!interaction.isCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
@@ -54,7 +67,7 @@ client.on('interactionCreate', async (interaction) => {
     if (!command) return;
 
     try {
-        await command.execute(interaction); // Execute the command
+        await command.execute(interaction);
     } catch (error) {
         console.error(`Error executing command: ${interaction.commandName}`, error);
         await interaction.reply({
@@ -63,6 +76,7 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 });
+
 
 // Event: Message-based Commands
 client.on('messageCreate', async (message) => {
